@@ -7,11 +7,7 @@ import string
 import sqlite3
 import time
 import hashlib
-from PIL import Image
-import imagehash
 from flask import Flask, request, redirect, send_file, make_response
-import sys
-
 
 #################### Config ################################
 
@@ -33,6 +29,10 @@ UPLOAD_PATH = BASE_PATH +           "/f/"		# Path for files to be accessed e.g. 
 REDIRECT_PATH = BASE_PATH +         "/r/"		# Path for redirects to be accessed e.g. https://example.org/r/abcd
 
 ############################################################
+
+if ENABLE_IMAGE_HASH:
+	from PIL import Image
+	import imagehash
 
 IMAGETYPES = ( # Types to be processed by imagehash (should be supported by imagehash/PIL)
 	'jpg',
@@ -147,14 +147,17 @@ def getFile(f):
 		else:
 			fileDbCur.execute("UPDATE files SET downloads = downloads + 1 WHERE md5 = ?;", [fileChk])
 		fileDbCon.commit()
+		
+		if request.headers.get('If-None-Match') == fileChk:
+			return Response(code=304)
+		else:
+			filePath = "./upload/" + fileChk + "." + getExt(fileOriginalName)
 
-		filePath = "./upload/" + fileChk + "." + getExt(fileOriginalName)
-
-		#return send_file(filePath, attachment_filename=fileName, conditional=True)#, as_attachment=False)
-		# Hacky headers because the above does not appear to work
-		response = make_response(send_file(filePath, conditional=True))
-		response.headers['Content-Disposition'] = "inline; filename=" + fileName
-		return response 
+			#return send_file(filePath, attachment_filename=fileName, conditional=True)#, as_attachment=False)
+			# Hacky headers because the above does not appear to work
+			response = make_response(send_file(filePath, conditional=True))
+			response.headers['Content-Disposition'] = "inline; filename=" + fileName
+			return response 
 	else:
 		return "File does not exist or expired", 404
 
