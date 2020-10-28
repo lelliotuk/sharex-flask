@@ -10,7 +10,7 @@ Was tired of my old Python CGI script with ~300ms requests and decided to move i
  - Short URLs, 4-character IDs, full filenames (Content-Disposition)
  - Optional file extension on URLs (simply remove or extend(?), only the first 4 characters are considered)
  - Fresh link with no duplicate files
- - Image hashing and click count in database
+ - Image hashing and click count stored in database (no functionality outside db yet)
 
 ### To-do
 - Clean up code
