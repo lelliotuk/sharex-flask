@@ -19,13 +19,12 @@ ENABLE_IMAGE_HASH = False # Enable image hashing, disabled by default until it i
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__)) # absolute working directory (default is the path of this script)
 
-URL_ROOT =				""			# The first part of the URL returned e.g. https://example.org/
-									# !! Must have trailing slash
-									# Leave blank to use request.url_root
-CREATE_UPLOAD_PATH =	"/upload"	# Path for files to be uploaded e.g. https://example.org/upload
-CREATE_REDIRECT_PATH =	"/redirect"	# Path for redirects to be created e.g. https://example.org/redirect
-UPLOAD_PATH =			"/f/"		# Path for files to be accessed e.g. https://example.org/f/1234.jpg
-REDIRECT_PATH =			"/r/"		# Path for redirects to be accessed e.g. https://example.org/r/abcd
+URL_ROOT =	""		# The first part of the URL returned e.g. https://example.org/
+				# !! Must have trailing slash
+				# Leave blank to use request.url_root
+CREATE_PATH =	"/create"	# Path for files to be uploaded or links to be shortened e.g. https://example.org/create
+UPLOAD_PATH =	"/f/"		# Path for files to be accessed e.g. https://example.org/f/1234.jpg
+REDIRECT_PATH =	"/r/"		# Path for redirects to be accessed e.g. https://example.org/r/abcd
 
 ############################################################
 
@@ -67,67 +66,20 @@ dbCon.commit()
 
 app = Flask(__name__, static_url_path='/static', static_folder='static')
 
-
-
 def getExt(f): return f.split(".")[-1] if '.' in f else ''
 def rndStr(l=10): return ''.join(random.choice(string.ascii_letters + string.digits) for i in range(l))
 def serverAddr(): return URL_ROOT or request.url_root[:-1] or ''
 
-@app.route(CREATE_UPLOAD_PATH, methods=['POST'])
-def createUpload():
+
+@app.route(CREATE_PATH, methods=['POST'])
+def create():
 	if SECRET_KEY and request.form['k'] != SECRET_KEY: return "Not authenticated", 401
-		
 	file = request.files.get('f')
-	if not file: return "No file uploaded", 400
-	
-	fileChk = hashlib.md5(file.read()).hexdigest()
-	fileName = file.filename
-	fileExt = getExt(fileName)
-	fileImgHash = ''
-	
-	if ENABLE_IMAGE_HASH and fileExt in IMAGETYPES:
-		try:
-			file.seek(0)
-			fileImgHash = str(imagehash.phash(Image.open(upload.file)))
-		except:
-			pass # not critical
-	
-	
-	dbCur.execute("SELECT * FROM files WHERE md5 = ?;", [fileChk])
-	result = dbCur.fetchone()
-	if result is None:
-		file.seek(0)
-		file.save('./upload/' + fileChk + '.' + fileExt)
-		dbCur.execute("INSERT INTO files VALUES (?,?,?,?,?,?);", [fileChk, fileImgHash, epoch, fileName, 0, ""])
-	
-	while True:
-		rnd = rndStr(4)
-		dbCur.execute("SELECT * FROM links WHERE id = ?", [rnd])
-		if not dbCur.fetchone(): break
-	
-	
-	dbCur.execute("INSERT INTO links VALUES (?,?,?,?,?,?);", [rnd, fileChk, fileName, epoch, -1, 0])
-	dbCon.commit()
-
-	return serverAddr() + UPLOAD_PATH + rnd + '.' + fileExt
-
-
-
-
-
-@app.route(CREATE_REDIRECT_PATH, methods = ['POST'])
-def createRedirect():
-	if SECRET_KEY and request.form['k'] != SECRET_KEY: return "Unauthorised", 401
 	url = request.form.get('u')
-	if not url: return "No URL provided", 400
-	while True:
-		rnd = rndStr(4)
-		dbCur.execute("SELECT id FROM redirects WHERE id = ?", [rnd])
-		if not dbCur.fetchone(): break
-	dbCur.execute("INSERT INTO redirects values (?,?,?,?);", [rnd, url, epoch, 0])
-	dbCon.commit()
-	return serverAddr() + REDIRECT_PATH + rnd
-
+	if file: return createUpload(file)
+	if url: return createRedirect(url)
+	return "No file or URL provided", 400
+	
 
 
 @app.route(UPLOAD_PATH + '<path:f>', methods = ['GET'])
@@ -174,6 +126,47 @@ def getRedirect(r):
 		return redirect(url, code=307)
 	else:
 		return "Link not found", 404
+
+def createUpload(file):
+	fileChk = hashlib.md5(file.read()).hexdigest()
+	fileName = file.filename
+	fileExt = getExt(fileName)
+	fileImgHash = ''
+	
+	if ENABLE_IMAGE_HASH and fileExt in IMAGETYPES:
+		try:
+			file.seek(0)
+			fileImgHash = str(imagehash.phash(Image.open(upload.file)))
+		except:
+			pass # not critical
+	
+	
+	dbCur.execute("SELECT * FROM files WHERE md5 = ?;", [fileChk])
+	result = dbCur.fetchone()
+	if result is None:
+		file.seek(0)
+		file.save('./upload/' + fileChk + '.' + fileExt)
+		dbCur.execute("INSERT INTO files VALUES (?,?,?,?,?,?);", [fileChk, fileImgHash, epoch, fileName, 0, ""])
+	
+	while True:
+		rnd = rndStr(4)
+		dbCur.execute("SELECT * FROM links WHERE id = ?", [rnd])
+		if not dbCur.fetchone(): break
+	
+	
+	dbCur.execute("INSERT INTO links VALUES (?,?,?,?,?,?);", [rnd, fileChk, fileName, epoch, -1, 0])
+	dbCon.commit()
+
+	return serverAddr() + UPLOAD_PATH + rnd + '.' + fileExt
+	
+def createRedirect(url):
+	while True:
+		rnd = rndStr(4)
+		dbCur.execute("SELECT id FROM redirects WHERE id = ?", [rnd])
+		if not dbCur.fetchone(): break
+	dbCur.execute("INSERT INTO redirects values (?,?,?,?);", [rnd, url, epoch, 0])
+	dbCon.commit()
+	return serverAddr() + REDIRECT_PATH + rnd
 
 if __name__ == '__main__':
     app.run(threaded=True)
