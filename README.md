@@ -15,6 +15,7 @@ Was tired of my old Python CGI script with ~300ms requests and decided to move i
 
 ### To-do
 - Clean up code
+- Merge databases, idk why there's two
 - Example Apache, ShareX, etc. configs
 - Configurable link lengths
 - Full filename in URL option
