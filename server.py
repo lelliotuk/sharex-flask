@@ -19,13 +19,13 @@ ENABLE_IMAGE_HASH = False # Enable image hashing, disabled by default until it i
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__)) # absolute working directory (default is the path of this script)
 
-URL_ROOT = ""				# The first part of the URL returned e.g. https://example.org/
-					# !! Must have trailing slash
-					# Leave blank to use request.url_root
-CREATE_UPLOAD_PATH = "/upload"		# Path for files to be uploaded e.g. https://example.org/upload
-CREATE_REDIRECT_PATH = "/redirect"	# Path for redirects to be created e.g. https://example.org/redirect
-UPLOAD_PATH = "/f/"			# Path for files to be accessed e.g. https://example.org/f/1234.jpg
-REDIRECT_PATH = "/r/"			# Path for redirects to be accessed e.g. https://example.org/r/abcd
+URL_ROOT =				""			# The first part of the URL returned e.g. https://example.org/
+									# !! Must have trailing slash
+									# Leave blank to use request.url_root
+CREATE_UPLOAD_PATH =	"/upload"	# Path for files to be uploaded e.g. https://example.org/upload
+CREATE_REDIRECT_PATH =	"/redirect"	# Path for redirects to be created e.g. https://example.org/redirect
+UPLOAD_PATH =			"/f/"		# Path for files to be accessed e.g. https://example.org/f/1234.jpg
+REDIRECT_PATH =			"/r/"		# Path for redirects to be accessed e.g. https://example.org/r/abcd
 
 ############################################################
 
@@ -49,20 +49,21 @@ os.chdir(BASE_DIR)
 
 if not os.path.isdir("./upload"): os.mkdir("./upload")
 
-fileDbCon = sqlite3.connect("./uploads.sqlite")
-fileDbCur = fileDbCon.cursor()
+dbCon = sqlite3.connect("./uploads.sqlite")
+dbCur = dbCon.cursor()
 
-fileDbCur.execute('CREATE TABLE IF NOT EXISTS files (md5 TEXT PRIMARY KEY, imagehash TEXT, time INT, filename TEXT, downloads INT, comments TEXT);')
-fileDbCur.execute('CREATE TABLE IF NOT EXISTS links (id TEXT PRIMARY KEY, md5 TEXT, filename TEXT, time INT, expires INT, onetime INT, FOREIGN KEY(md5) REFERENCES files(md5))')
-fileDbCur.execute('CREATE INDEX IF NOT EXISTS idxfilehash ON files (md5)')
-fileDbCur.execute('CREATE INDEX IF NOT EXISTS idximagehash ON files(imagehash)')
-fileDbCur.execute('CREATE INDEX IF NOT EXISTS idxlinkid ON links (id)')
+# Create file table
+dbCur.execute('CREATE TABLE IF NOT EXISTS files (md5 TEXT PRIMARY KEY, imagehash TEXT, time INT, filename TEXT, downloads INT, comments TEXT);')
+dbCur.execute('CREATE TABLE IF NOT EXISTS links (id TEXT PRIMARY KEY, md5 TEXT, filename TEXT, time INT, expires INT, onetime INT, FOREIGN KEY(md5) REFERENCES files(md5))')
+dbCur.execute('CREATE INDEX IF NOT EXISTS idxfilehash ON files (md5)')
+dbCur.execute('CREATE INDEX IF NOT EXISTS idximagehash ON files(imagehash)')
+dbCur.execute('CREATE INDEX IF NOT EXISTS idxlinkid ON links (id)')
 
+# Create redirect table
+dbCur.execute('CREATE TABLE IF NOT EXISTS redirects (id text, url text, time integer, views integer, PRIMARY KEY("id"));')
+dbCur.execute('CREATE INDEX IF NOT EXISTS idxredirects ON redirects (id);')
 
-redirDbCon = sqlite3.connect("./redirects.sqlite")
-redirDbCur = redirDbCon.cursor()
-redirDbCur.execute('CREATE TABLE IF NOT EXISTS redirects (id text, url text, time integer, views integer, PRIMARY KEY("id"));')
-redirDbCur.execute('CREATE INDEX IF NOT EXISTS idxredirects ON redirects (id);')
+dbCon.commit()
 
 app = Flask(__name__, static_url_path='/static', static_folder='static')
 
@@ -92,21 +93,21 @@ def createUpload():
 			pass # not critical
 	
 	
-	fileDbCur.execute("SELECT * FROM files WHERE md5 = ?;", [fileChk])
-	result = fileDbCur.fetchone()
+	dbCur.execute("SELECT * FROM files WHERE md5 = ?;", [fileChk])
+	result = dbCur.fetchone()
 	if result is None:
 		file.seek(0)
 		file.save('./upload/' + fileChk + '.' + fileExt)
-		fileDbCur.execute("INSERT INTO files VALUES (?,?,?,?,?,?);", [fileChk, fileImgHash, epoch, fileName, 0, ""])
+		dbCur.execute("INSERT INTO files VALUES (?,?,?,?,?,?);", [fileChk, fileImgHash, epoch, fileName, 0, ""])
 	
 	while True:
 		rnd = rndStr(4)
-		fileDbCur.execute("SELECT * FROM links WHERE id = ?", [rnd])
-		if not fileDbCur.fetchone(): break
+		dbCur.execute("SELECT * FROM links WHERE id = ?", [rnd])
+		if not dbCur.fetchone(): break
 	
 	
-	fileDbCur.execute("INSERT INTO links VALUES (?,?,?,?,?,?);", [rnd, fileChk, fileName, epoch, -1, 0])
-	fileDbCon.commit()
+	dbCur.execute("INSERT INTO links VALUES (?,?,?,?,?,?);", [rnd, fileChk, fileName, epoch, -1, 0])
+	dbCon.commit()
 
 	return serverAddr() + UPLOAD_PATH + rnd + '.' + fileExt
 
@@ -121,10 +122,10 @@ def createRedirect():
 	if not url: return "No URL provided", 400
 	while True:
 		rnd = rndStr(4)
-		redirDbCur.execute("SELECT id FROM redirects WHERE id = ?", [rnd])
-		if not redirDbCur.fetchone(): break
-	redirDbCur.execute("INSERT INTO redirects values (?,?,?,?);", [rnd, url, epoch, 0])
-	redirDbCon.commit()
+		dbCur.execute("SELECT id FROM redirects WHERE id = ?", [rnd])
+		if not dbCur.fetchone(): break
+	dbCur.execute("INSERT INTO redirects values (?,?,?,?);", [rnd, url, epoch, 0])
+	dbCon.commit()
 	return serverAddr() + REDIRECT_PATH + rnd
 
 
@@ -132,20 +133,20 @@ def createRedirect():
 @app.route(UPLOAD_PATH + '<path:f>', methods = ['GET'])
 def getFile(f):
 	f = f[:4]
-	fileDbCur.execute("SELECT links.md5,links.filename,expires,onetime,files.filename,files.time FROM links JOIN files ON links.md5=files.md5 WHERE id = ?;", [f])
-	result = fileDbCur.fetchone()
+	dbCur.execute("SELECT links.md5,links.filename,expires,onetime,files.filename,files.time FROM links JOIN files ON links.md5=files.md5 WHERE id = ?;", [f])
+	result = dbCur.fetchone()
 	if result:
 		fileChk, fileName, fileExpires, fileOnetime, fileOriginalName, fileTimestamp = result
 		if fileExpires > 0 and epoch > fileExpires:
-			fileDbCur.execute("DELETE FROM links WHERE id = ?;", [f])
-			fileDbCon.commit()
+			dbCur.execute("DELETE FROM links WHERE id = ?;", [f])
+			dbCon.commit()
 			return "File does not exist or expired", 404
 
 		if fileOnetime:
-			fileDbCur.execute("DELETE FROM links WHERE id = ?;", [f])
+			dbCur.execute("DELETE FROM links WHERE id = ?;", [f])
 		else:
-			fileDbCur.execute("UPDATE files SET downloads = downloads + 1 WHERE md5 = ?;", [fileChk])
-		fileDbCon.commit()
+			dbCur.execute("UPDATE files SET downloads = downloads + 1 WHERE md5 = ?;", [fileChk])
+		dbCon.commit()
 		
 		if request.headers.get('If-None-Match') == fileChk:
 			return Response(code=304)
@@ -164,15 +165,15 @@ def getFile(f):
 @app.route(REDIRECT_PATH + '<path:r>', methods = ['GET'])
 def getRedirect(r):
 	r = r[:4]
-	redirDbCur.execute("SELECT url FROM redirects WHERE id = ?;", [r])
-	result = redirDbCur.fetchone()
+	dbCur.execute("SELECT url FROM redirects WHERE id = ?;", [r])
+	result = dbCur.fetchone()
 	if result:
-		redirDbCur.execute("UPDATE redirects SET views = views + 1 WHERE id = ?;", [r])
-		redirDbCon.commit()
+		dbCur.execute("UPDATE redirects SET views = views + 1 WHERE id = ?;", [r])
+		dbCon.commit()
 		url, = result
 		return redirect(url, code=307)
 	else:
 		return "Link not found", 404
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', threaded=True)
+    app.run(threaded=True)
