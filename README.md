@@ -1,6 +1,7 @@
 
 # sharex-flask
 Another (Flask) ShareX file upload and URL shortener
+
 Advanced, easy-to-use, and portable
 
 Was tired of my old Python CGI script with ~300ms requests and decided to move it to WSGI/Flask, cutting it down to ~10ms, I might upload the old script at some point
