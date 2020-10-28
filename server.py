@@ -19,14 +19,14 @@ ENABLE_IMAGE_HASH = False # Enable image hashing, disabled by default until it i
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__)) # absolute working directory (default is the path of this script)
 
-URL_ROOT =                          ""			# The first part of the URL returned e.g. https://example.org/
-												# !! Must have trailing slash
-												# Leave blank to use request.url_root
-BASE_PATH =                         ""			# Optional prefix for the path e.g. https://example.org/prefix/upload
+URL_ROOT =                          ""		# The first part of the URL returned e.g. https://example.org/
+						# !! Must have trailing slash
+						# Leave blank to use request.url_root
+BASE_PATH =                         ""		# Optional prefix for the path e.g. https://example.org/prefix/upload
 CREATE_UPLOAD_PATH = BASE_PATH +    "/upload"	# Path for files to be uploaded e.g. https://example.org/upload
 CREATE_REDIRECT_PATH = BASE_PATH +  "/redirect"	# Path for redirects to be created e.g. https://example.org/redirect
-UPLOAD_PATH = BASE_PATH +           "/f/"		# Path for files to be accessed e.g. https://example.org/f/1234.jpg
-REDIRECT_PATH = BASE_PATH +         "/r/"		# Path for redirects to be accessed e.g. https://example.org/r/abcd
+UPLOAD_PATH = BASE_PATH +           "/f/"	# Path for files to be accessed e.g. https://example.org/f/1234.jpg
+REDIRECT_PATH = BASE_PATH +         "/r/"	# Path for redirects to be accessed e.g. https://example.org/r/abcd
 
 ############################################################
 
