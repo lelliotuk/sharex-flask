@@ -29,18 +29,18 @@ Was tired of my old Python CGI script with ~300ms requests and decided to move i
 You only really need to change the secret key variable in `server.py`, but there are some other configurable options
 
 ### File uploading
-POST to https://example.org/upload
-Form:
-`k` - Your secret key
-`f` - The file to upload
+POST to https://example.org/upload  
+Form:  
+`k` - Your secret key  
+`f` - The file to upload  
 
-Response:
+Response:  
 Plaintext generated full URL (e.g. https://example.org/f/1234.jpg)
 ### File uploading
-POST to https://example.org/redirect
-Form:
-`k` - Your secret key
-`u` - The URL to redirect to
+POST to https://example.org/redirect  
+Form:  
+`k` - Your secret key  
+`u` - The URL to redirect to  
 
-Response:
+Response:  
 Plaintext generated full URL (e.g. https://example.org/r/abcd)
