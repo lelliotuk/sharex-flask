@@ -147,17 +147,14 @@ def getFile(f):
 		else:
 			fileDbCur.execute("UPDATE files SET downloads = downloads + 1 WHERE md5 = ?;", [fileChk])
 		fileDbCon.commit()
-		
-		if request.headers.get('If-None-Match') == fileChk:
-			return Response(code=304)
-		else:
-			filePath = "./upload/" + fileChk + "." + getExt(fileOriginalName)
 
-			#return send_file(filePath, attachment_filename=fileName, conditional=True)#, as_attachment=False)
-			# Hacky headers because the above does not appear to work
-			response = make_response(send_file(filePath, conditional=True))
-			response.headers['Content-Disposition'] = "inline; filename=" + fileName
-			return response 
+		filePath = "./upload/" + fileChk + "." + getExt(fileOriginalName)
+
+		#return send_file(filePath, attachment_filename=fileName, conditional=True)#, as_attachment=False)
+		# Hacky headers because the above does not appear to work
+		response = make_response(send_file(filePath, conditional=True))
+		response.headers['Content-Disposition'] = "inline; filename=" + fileName
+		return response 
 	else:
 		return "File does not exist or expired", 404
 
