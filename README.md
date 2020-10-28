@@ -36,7 +36,7 @@ Form:
 
 Response:  
 Plaintext generated full URL (e.g. https://example.org/f/1234.jpg)
-### File uploading
+### Creating redirects
 POST to https://example.org/redirect  
 Form:  
 `k` - Your secret key  
