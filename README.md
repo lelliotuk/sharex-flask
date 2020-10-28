@@ -36,7 +36,6 @@ Form:
 
 Response:
 Plaintext generated full URL (e.g. https://example.org/f/1234.jpg)
-## Usage
 ### File uploading
 POST to https://example.org/redirect
 Form:
