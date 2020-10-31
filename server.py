@@ -17,7 +17,7 @@ SECRET_KEY = "!!! KEY HERE !!!" # Can be left empty (not recommended)
 
 ENABLE_IMAGE_HASH = False # Enable image hashing, disabled by default until it is used for something
 
-BASE_DIR = os.path.dirname(os.path.realpath(__file__)) # absolute working directory (default is the path of this script)
+BASE_DIR = os.path.dirname(os.path.realpath(__file__)) + "/" # absolute working directory (default is the path of this script)
 
 URL_ROOT =	""		# The first part of the URL returned e.g. https://example.org/
 				# !! Must have trailing slash
