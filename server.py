@@ -44,11 +44,9 @@ IMAGETYPES = ( # Types to be processed by imagehash (should be supported by imag
 
 epoch = int(time.time())
 
-os.chdir(BASE_DIR)
+if not os.path.isdir(BASE_DIR + "./upload"): os.mkdir(BASE_DIR + "./upload")
 
-if not os.path.isdir("./upload"): os.mkdir("./upload")
-
-dbCon = sqlite3.connect("./uploads.sqlite")
+dbCon = sqlite3.connect(BASE_DIR + "./uploads.sqlite")
 dbCur = dbCon.cursor()
 
 # Create file table
@@ -103,7 +101,7 @@ def getFile(f):
 		if request.headers.get('If-None-Match') == fileChk:
 			return Response(code=304)
 		else:
-			filePath = "./upload/" + fileChk + "." + getExt(fileOriginalName)
+			filePath = BASE_DIR + "./upload/" + fileChk + "." + getExt(fileOriginalName)
 
 			#return send_file(filePath, attachment_filename=fileName, conditional=True)#, as_attachment=False)
 			# Hacky headers because the above does not appear to work
@@ -145,7 +143,7 @@ def createUpload(file):
 	result = dbCur.fetchone()
 	if result is None:
 		file.seek(0)
-		file.save('./upload/' + fileChk + '.' + fileExt)
+		file.save(BASE_DIR + './upload/' + fileChk + '.' + fileExt)
 		dbCur.execute("INSERT INTO files VALUES (?,?,?,?,?,?);", [fileChk, fileImgHash, epoch, fileName, 0, ""])
 	
 	while True:
