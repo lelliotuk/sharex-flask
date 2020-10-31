@@ -7,6 +7,7 @@ import string
 import sqlite3
 import time
 import hashlib
+from urllib.parse import quote as urlEncode
 from flask import Flask, request, redirect, send_file, make_response
 
 #################### Config ################################
@@ -98,16 +99,13 @@ def getFile(f):
 			dbCur.execute("UPDATE files SET downloads = downloads + 1 WHERE md5 = ?;", [fileChk])
 		dbCon.commit()
 		
-		if request.headers.get('If-None-Match') == fileChk:
-			return Response(code=304)
-		else:
-			filePath = BASE_DIR + "./upload/" + fileChk + "." + getExt(fileOriginalName)
-
-			#return send_file(filePath, attachment_filename=fileName, conditional=True)#, as_attachment=False)
-			# Hacky headers because the above does not appear to work
-			response = make_response(send_file(filePath, conditional=True))
-			response.headers['Content-Disposition'] = "inline; filename=" + fileName
-			return response 
+		filePath = BASE_DIR + "./upload/" + fileChk + "." + getExt(fileOriginalName)
+		if not os.path.isfile(filePath): return "File record found but file does not exist", 500
+		#return send_file(filePath, attachment_filename=fileName, conditional=True)#, as_attachment=False)
+		# Hacky headers because the above does not appear to work
+		response = make_response(send_file(filePath, conditional=True))
+		response.headers['Content-Disposition'] = 'inline; filename="' + urlEncode(fileName) + '"'
+		return response 
 	else:
 		return "File does not exist or expired", 404
 
@@ -130,6 +128,7 @@ def createUpload(file):
 	fileName = file.filename
 	fileExt = getExt(fileName)
 	fileImgHash = ''
+	fileDest = BASE_DIR + './upload/' + fileChk + '.' + fileExt
 	
 	if ENABLE_IMAGE_HASH and fileExt in IMAGETYPES:
 		try:
@@ -141,9 +140,12 @@ def createUpload(file):
 	
 	dbCur.execute("SELECT * FROM files WHERE md5 = ?;", [fileChk])
 	result = dbCur.fetchone()
-	if result is None:
+	
+	if not os.path.isfile(fileDest):
 		file.seek(0)
-		file.save(BASE_DIR + './upload/' + fileChk + '.' + fileExt)
+		file.save(fileDest)
+	
+	if result is None:
 		dbCur.execute("INSERT INTO files VALUES (?,?,?,?,?,?);", [fileChk, fileImgHash, epoch, fileName, 0, ""])
 	
 	while True:
