@@ -1,0 +1,13 @@
+{
+  "Version": "12.4.1",
+  "Name": "example upload config",
+  "DestinationType": "ImageUploader, TextUploader, FileUploader, URLShortener, URLSharingService",
+  "RequestMethod": "POST",
+  "RequestURL": "https://example.org/create",
+  "Body": "MultipartFormData",
+  "Arguments": {
+    "k": "key here",
+    "u": "$input$"
+  },
+  "FileFormName": "f"
+}
