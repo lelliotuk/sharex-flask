@@ -68,7 +68,11 @@ app = Flask(__name__, static_url_path='/static', static_folder='static')
 def getExt(f): return f.split(".")[-1] if '.' in f else ''
 def rndStr(l=10): return ''.join(random.choice(string.ascii_letters + string.digits) for i in range(l))
 def serverAddr(): return URL_ROOT or request.url_root[:-1] or ''
-
+def headerSanitise(h):
+    h = h.replace("\n","")
+    h = h.replace("\r","")
+    return h
+    # Basic sanitise    
 
 @app.route(CREATE_PATH, methods=['POST'])
 def create():
@@ -101,7 +105,7 @@ def getFile(f):
         
         filePath = BASE_DIR + "./upload/" + fileChk + "." + getExt(fileOriginalName)
         if not os.path.isfile(filePath): return "File record found but file does not exist", 500
-        #return send_file(filePath, attachment_filename=fileName, conditional=True)#, as_attachment=False)
+        # return send_file(filePath, attachment_filename=fileName, conditional=True)#, as_attachment=False)
         # Hacky headers because the above does not appear to work
         response = make_response(send_file(filePath, conditional=True))
         response.headers['Content-Disposition'] = 'inline; filename="' + urlEncode(fileName) + '"'
@@ -164,6 +168,7 @@ def createRedirect(url):
         rnd = rndStr(4)
         dbCur.execute("SELECT id FROM redirects WHERE id = ?", [rnd])
         if not dbCur.fetchone(): break
+    url = headerSanitise(url)
     dbCur.execute("INSERT INTO redirects values (?,?,?,?);", [rnd, url, epoch, 0])
     dbCon.commit()
     return serverAddr() + REDIRECT_PATH + rnd
