@@ -14,13 +14,12 @@ Was tired of my old Python CGI script with ~300ms requests and decided to move i
  - Image hashing and click count stored in database (no functionality outside db yet)
 
 ### To-do
-- Clean up code
-- Move to SQLAlchemy
+- Clean up code/PEP8
 - Configurable link lengths
 - Full filename in URL option
 - Configurable Content-Disposition for certain filetypes (attachment/inline)
 - Link/file expiry and self-destructing
-- Image hashing to avoid duplicates(?)
+- Image hashing to avoid duplicates if the file hash is inadequate(?)
 - Web interface(?)
 - Users(?)
 - IDK
