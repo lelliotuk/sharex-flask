@@ -23,6 +23,13 @@ ENABLE_IMAGE_HASH = False
 # Absolute working directory (default is the path of this script)
 BASE_DIR = os.path.dirname(os.path.realpath(__file__)) + "/"
 
+# Database path
+DB_PATH = BASE_DIR + "/uploads.sqlite"
+
+# Upload directory
+# !! Must have trailing slash
+UPLOAD_DIR = BASE_DIR + "/upload/"
+
 # The first part of the URL returned
 # e.g. https://example.org/
 # !! Must have trailing slash
@@ -42,9 +49,14 @@ UPLOAD_PATH = "/f/"
 REDIRECT_PATH = "/r/"
 
 # Possible characters for random link generation
-# Default should be good (a-Z, 0-9)
+# Default is absolutely fine (a-Z, 0-9)
 # 14 Million combinations with 4 characters
+# Do not use '.' and avoid URL-sensitive characters
 LINK_CHARS = string.ascii_letters + string.digits
+
+# Generated link length
+# e.g. https://example.org/f/1234.jpg is 4
+LINK_LEN = 4
 
 # -----------------------------------------------------------------------
 
@@ -64,10 +76,10 @@ IMAGE_TYPES = (
 
 epoch = int(time.time())
 
-if not os.path.isdir(BASE_DIR + "./upload"):
-    os.mkdir(BASE_DIR + "./upload")
+if not os.path.isdir(UPLOAD_DIR):
+    os.mkdir(UPLOAD_DIR)
 
-con = sqlite3.connect(BASE_DIR + "./uploads.sqlite")
+con = sqlite3.connect(DB_PATH)
 cur = con.cursor()
 
 
@@ -156,7 +168,7 @@ def create():
 
 @app.route(UPLOAD_PATH + '<path:f>', methods=['GET'])
 def get_file(f):
-    f = f[:4]
+    f = f.split(".",1)[0]
     
     cur.execute('''
         SELECT 
@@ -197,7 +209,7 @@ def get_file(f):
                     
         con.commit()
         
-        file_path = BASE_DIR + "./upload/" + \
+        file_path = UPLOAD_DIR + \
             file_chk + "." + get_ext(file_origname)
         
         if not os.path.isfile(file_path):
@@ -219,7 +231,7 @@ def get_file(f):
 
 @app.route(REDIRECT_PATH + '<path:r>', methods=['GET'])
 def get_redirect(r):
-    r = r[:4]
+    r = r.split(".",1)[0]
     
     cur.execute("SELECT url FROM redirects WHERE id = ?;", [r])
     result = cur.fetchone()
@@ -246,7 +258,7 @@ def create_upload(file):
     file_name = file.filename
     file_ext = get_ext(file_name)
     file_imghash = ''
-    file_dest = BASE_DIR + './upload/' + file_chk + '.' + file_ext
+    file_dest = UPLOAD_DIR + file_chk + '.' + file_ext
     
     if ENABLE_IMAGE_HASH and file_ext in IMAGE_TYPES:
         try:
@@ -267,7 +279,7 @@ def create_upload(file):
                     [file_chk, file_imghash, epoch, file_name, 0, ""])
     
     while True:
-        rnd = rnd_str(4)
+        rnd = rnd_str(LINK_LEN)
         cur.execute("SELECT * FROM links WHERE id = ?", [rnd])
         if not cur.fetchone():
             break
@@ -282,7 +294,7 @@ def create_upload(file):
 
 def create_redirect(url):
     while True:
-        rnd = rnd_str(4)
+        rnd = rnd_str(LINK_LEN)
         cur.execute("SELECT id FROM redirects WHERE id = ?", [rnd])
         if not cur.fetchone():
             break
