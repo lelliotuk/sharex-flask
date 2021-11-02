@@ -74,8 +74,6 @@ IMAGE_TYPES = (
     'webp')
 
 
-epoch = int(time.time())
-
 if not os.path.isdir(UPLOAD_DIR):
     os.mkdir(UPLOAD_DIR)
 
@@ -145,7 +143,11 @@ def http_sanitise(h):
     h = h.replace("\n", "") \
          .replace("\r", "")
     return h
-    # Basic sanitise    
+    # Basic sanitise
+    
+
+def timestamp():
+    return int(time.time())
 
 
 @app.route(CREATE_PATH, methods=['POST'])
@@ -168,6 +170,7 @@ def create():
 
 @app.route(UPLOAD_PATH + '<path:f>', methods=['GET'])
 def get_file(f):
+    now = timestamp()
     f = f.split(".",1)[0]
     
     cur.execute('''
@@ -190,7 +193,7 @@ def get_file(f):
         (file_chk, file_name, file_expires,
             file_onetime, file_origname, file_timestamp) = result
         
-        if file_expires > 0 and epoch > file_expires:
+        if file_expires > 0 and now > file_expires:
             cur.execute("DELETE FROM links WHERE id = ?;", [f])
             con.commit()
             return "File does not exist or expired", 404
@@ -254,6 +257,8 @@ def get_redirect(r):
 
 
 def create_upload(file):
+    now = timestamp()
+
     file_chk = hashlib.md5(file.read()).hexdigest()
     file_name = file.filename
     file_ext = get_ext(file_name)
@@ -276,7 +281,7 @@ def create_upload(file):
     
     if result is None:
         cur.execute("INSERT INTO files VALUES (?,?,?,?,?,?);", 
-                    [file_chk, file_imghash, epoch, file_name, 0, ""])
+                    [file_chk, file_imghash, now, file_name, 0, ""])
     
     while True:
         rnd = rnd_str(LINK_LEN)
@@ -285,7 +290,7 @@ def create_upload(file):
             break
     
     cur.execute("INSERT INTO links VALUES (?,?,?,?,?,?);", 
-                [rnd, file_chk, file_name, epoch, -1, 0])
+                [rnd, file_chk, file_name, now, -1, 0])
         
     con.commit()
 
@@ -293,6 +298,8 @@ def create_upload(file):
 
 
 def create_redirect(url):
+    now = timestamp()
+
     while True:
         rnd = rnd_str(LINK_LEN)
         cur.execute("SELECT id FROM redirects WHERE id = ?", [rnd])
@@ -302,7 +309,7 @@ def create_redirect(url):
     url = http_sanitise(url)
     
     cur.execute("INSERT INTO redirects values (?,?,?,?);",
-                [rnd, url, epoch, 0])
+                [rnd, url, now, 0])
         
     con.commit()
     return server_addr() + REDIRECT_PATH + rnd
