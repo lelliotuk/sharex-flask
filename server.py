@@ -7,8 +7,10 @@ import string
 import sqlite3
 import time
 import hashlib
+import shutil
+from io import BytesIO
 from urllib.parse import quote as url_encode
-from flask import Flask, request, redirect, send_file, make_response
+from flask import Flask, request, redirect, send_file, make_response, Request
 
 # ------------------------------- Config --------------------------------
 
@@ -20,6 +22,10 @@ SECRET_KEY = "!!! KEY HERE !!!"  # Can be left empty (not recommended)
 # Enable image hashing, disabled by default until it is used for something
 ENABLE_IMAGE_HASH = False
 
+# Max file size for image hashing
+# Prevents huge files with specific extensions consuming lots of memory
+MAX_FILE_MEMORY = 30 * 1024 * 1024 # 30MB
+
 # Absolute working directory (default is the path of this script)
 BASE_DIR = os.path.dirname(os.path.realpath(__file__)) + "/"
 
@@ -30,10 +36,15 @@ DB_PATH = BASE_DIR + "/uploads.sqlite"
 # !! Must have trailing slash
 UPLOAD_DIR = BASE_DIR + "/upload/"
 
+# Temp directory
+# Uploads are written here until the checksum is calculated and the file is moved
+# !! Must have trailing slash
+TEMP_DIR = BASE_DIR + "/temp/"
+
 # The first part of the URL returned
 # e.g. https://example.org/
-# !! Must have trailing slash
 # Leave blank to use request.url_root
+# !! Must have trailing slash
 URL_ROOT = ""
 
 # Path for files to be uploaded or links to be shortened
@@ -58,6 +69,7 @@ LINK_CHARS = string.ascii_letters + string.digits
 # e.g. https://example.org/f/1234.jpg is 4
 LINK_LEN = 4
 
+
 # -----------------------------------------------------------------------
 
 if ENABLE_IMAGE_HASH:
@@ -76,6 +88,9 @@ IMAGE_TYPES = (
 
 if not os.path.isdir(UPLOAD_DIR):
     os.mkdir(UPLOAD_DIR)
+
+if not os.path.isdir(TEMP_DIR):
+    os.mkdir(TEMP_DIR)
 
 con = sqlite3.connect(DB_PATH)
 cur = con.cursor()
@@ -123,8 +138,49 @@ cur.execute('CREATE INDEX IF NOT EXISTS idxredirects ON redirects (id);')
 
 con.commit()
 
-
 app = Flask(__name__, static_url_path='/static', static_folder='static')
+
+class Upload():
+    def __init__(self, filename, total_content_length):
+        self.chk = hashlib.md5()
+        self.tempname = TEMP_DIR + str(time.time_ns())
+        self.tempfile = open(self.tempname, "wb+")
+        self.file_mem = BytesIO()
+        
+        self.read = self.tempfile.read
+        self.readline = self.tempfile.readline
+        
+        self.imhash = ENABLE_IMAGE_HASH \
+                  and get_ext(filename) in IMAGE_TYPES \
+                  and total_content_length < MAX_FILE_MEMORY
+                  
+        self.buffer_funcs = [self.chk.update, self.tempfile.write]
+             
+        if self.imhash:
+            self.buffer_funcs.append(self.file_mem.write)
+        
+    def write(self, data):
+        for f in self.buffer_funcs:
+            f(data)
+    
+    def seek(self, p):
+        self.tempfile.seek(p)
+        self.file_mem.seek(p)
+    
+    def move(self, dest):
+        self.tempfile.close()
+        shutil.move(self.tempfile.name, dest)
+    
+    def delete(self):
+        self.tempfile.close()
+        os.remove(self.tempfile.name)
+
+
+class UploadStream(Request):
+    def _get_file_stream(self, total_content_length, content_type, filename=None, content_length=None):    
+        return Upload(filename, total_content_length)
+
+app.request_class = UploadStream
 
 
 def get_ext(f):
@@ -256,64 +312,64 @@ def get_redirect(r):
         return "Link not found", 404
 
 
+def rnd_id(table):
+    while True:
+        rnd = rnd_str(LINK_LEN)
+        cur.execute(f"SELECT * FROM {table} WHERE id = ?", [rnd])
+        if not cur.fetchone():
+            return rnd
+
+
 def create_upload(file):
     now = timestamp()
 
-    file_chk = hashlib.md5(file.read()).hexdigest()
+    file_chk = file.stream.chk.hexdigest()
     file_name = file.filename
     file_ext = get_ext(file_name)
     file_imghash = ''
     file_dest = UPLOAD_DIR + file_chk + '.' + file_ext
     
-    if ENABLE_IMAGE_HASH and file_ext in IMAGE_TYPES:
+    if os.path.isfile(file_dest):
+        file.stream.delete()
+    else:
+        file.stream.move(file_dest)
+
+    if file.stream.imhash:
         try:
-            file.seek(0)
-            file_imghash = str(imagehash.phash(Image.open(upload.file)))
+            file_imghash = str(imagehash.phash(Image.open(file.stream.file_mem)))
         except:
-            pass  # not critical
+            pass
     
     cur.execute("SELECT * FROM files WHERE md5 = ?;", [file_chk])
     result = cur.fetchone()
-    
-    if not os.path.isfile(file_dest):
-        file.seek(0)
-        file.save(file_dest)
     
     if result is None:
         cur.execute("INSERT INTO files VALUES (?,?,?,?,?,?);", 
                     [file_chk, file_imghash, now, file_name, 0, ""])
     
-    while True:
-        rnd = rnd_str(LINK_LEN)
-        cur.execute("SELECT * FROM links WHERE id = ?", [rnd])
-        if not cur.fetchone():
-            break
+    link_id = rnd_id("links")
     
     cur.execute("INSERT INTO links VALUES (?,?,?,?,?,?);", 
-                [rnd, file_chk, file_name, now, -1, 0])
+                [link_id, file_chk, file_name, now, -1, 0])
         
     con.commit()
 
-    return server_addr() + UPLOAD_PATH + rnd + '.' + file_ext
+    return server_addr() + UPLOAD_PATH + link_id + '.' + file_ext
 
 
 def create_redirect(url):
     now = timestamp()
 
-    while True:
-        rnd = rnd_str(LINK_LEN)
-        cur.execute("SELECT id FROM redirects WHERE id = ?", [rnd])
-        if not cur.fetchone():
-            break
+    redir_id = rnd_id("redirects")
             
     url = http_sanitise(url)
     
     cur.execute("INSERT INTO redirects values (?,?,?,?);",
-                [rnd, url, now, 0])
+                [redir_id, url, now, 0])
         
     con.commit()
-    return server_addr() + REDIRECT_PATH + rnd
+    return server_addr() + REDIRECT_PATH + redir_id
 
 
 if __name__ == '__main__':
-    app.run(threaded=True)
+    app.run(threaded=False)
