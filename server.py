@@ -8,16 +8,16 @@ import sqlite3
 import time
 import hashlib
 import shutil
+import gc
 from io import BytesIO
 from urllib.parse import quote as url_encode
-from flask import Flask, request, redirect, send_file, make_response, Request
+from flask import Flask, request, redirect, send_file, make_response, Request, Response, stream_with_context
 
 # ------------------------------- Config --------------------------------
 
 SECRET_KEY = "!!! KEY HERE !!!"  # Can be left empty (not recommended)
 
 # Config below is optional
-
 
 # Enable image hashing, disabled by default until it is used for something
 ENABLE_IMAGE_HASH = False
@@ -173,7 +173,15 @@ class Upload():
     
     def delete(self):
         self.tempfile.close()
-        os.remove(self.tempfile.name)
+        self.file_mem.close()
+        if os.path.isfile(self.tempfile.name):
+            os.remove(self.tempfile.name)
+    
+    def close(self):
+        self.delete()
+    
+    def __del__(self):
+        self.delete()
 
 
 class UploadStream(Request):
@@ -208,21 +216,26 @@ def timestamp():
 
 @app.route(CREATE_PATH, methods=['POST'])
 def create():
-    if SECRET_KEY and request.form['k'] != SECRET_KEY:
-        return "Not authenticated", 401
-        
-    file = request.files.get('f')
-    url = request.form.get('u')
-    
-    if file:
-        return create_upload(file)
-    
-    elif url:
-        return create_redirect(url)
-    
-    else:
-        return "No file or URL provided", 400
-    
+    def stream():
+        try:
+            if SECRET_KEY and request.form['k'] != SECRET_KEY:
+                yield "Not authenticated", 401
+            
+            file = request.files.get('f')
+            url = request.form.get('u')
+            
+            if file:
+                yield create_upload(file)
+            
+            elif url:
+                yield create_redirect(url)
+            
+            else:
+                yield "No file or URL provided", 400
+        except:
+            pass
+
+    return Response(stream_with_context(stream()))
 
 @app.route(UPLOAD_PATH + '<path:f>', methods=['GET'])
 def get_file(f):
@@ -371,5 +384,7 @@ def create_redirect(url):
     return server_addr() + REDIRECT_PATH + redir_id
 
 
+
+
 if __name__ == '__main__':
-    app.run(threaded=False)
+    app.run(threaded=True)
