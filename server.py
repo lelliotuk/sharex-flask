@@ -58,6 +58,10 @@ LINK_CHARS = string.ascii_letters + string.digits
 # e.g. https://example.org/f/1234.jpg is 4
 LINK_LEN = 4
 
+# Content-Type header is determined by the mimetypes module if set to True, otherwise, it is stripped and the client guesses mimetype
+# Set to False by default because mimetypes didn't know what a WEBP was until Python 3.13
+GUESS_MIMETYPE = False
+
 # -----------------------------------------------------------------------
 
 if ENABLE_IMAGE_HASH:
@@ -223,8 +227,12 @@ def get_file(f):
         
         cont_disp = 'inline; filename="' + file_name + '"'
         response.headers['Content-Disposition'] = cont_disp
-            
         # Inline content disposisition doesn't work with send_file??
+
+        if not GUESS_MIMETYPE:
+            response.headers.pop('Content-Type', None) 
+
+        
         
         return response 
         
