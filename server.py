@@ -32,7 +32,6 @@ UPLOAD_DIR = BASE_DIR + "/upload/"
 
 # The first part of the URL returned
 # e.g. https://example.org/
-# !! Must have trailing slash
 # Leave blank to use request.url_root
 URL_ROOT = ""
 
