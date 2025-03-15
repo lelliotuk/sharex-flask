@@ -11,7 +11,25 @@ Another (Flask) ShareX file upload and URL shortener
 
 ## Usage
 ### Setup
-You only really need to change the secret key variable in `server.py`, but there are some other configurable options
+While you can launch the app directly through Flask, for security and performance, you should use a proper WSGI server such as uWSGI or Gunicorn, and proxy it through your web server, e.g. with WSGI ProxyPass. Alternatively, you can run the app directly in Apache2 with mod_wsgi.
+
+Here is a sample WSGI file where the app is imported and configured without modifying it
+```
+#!/usr/bin/python3
+
+import sharexsrv
+
+application = sharexsrv.app
+
+sharexsrv.URL_ROOT = "https://example.org"
+sharexsrv.SECRET_KEY = "key here"
+sharexsrv.BASE_DIR = "/var/www/sharexsrv/sharexsrv/"
+```
+These are the main things I recommend configuring. More options and explanations can be found in `server.py`
+
+`SECRET_KEY` is the key used to access the API
+
+I recommend using an absolute path for `BASE_DIR` to avoid any trouble. The database and uploads are stored here
 
 ### File uploading
 POST to /create  
